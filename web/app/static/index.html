@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Proxy Detector — 中转站模型真伪探测器</title>
+<style>
+:root {
+  --bg: #0c0c0c;
+  --surface: #151515;
+  --surface2: #1c1c1c;
+  --border: #2a2a2a;
+  --border-light: #333;
+  --text: #e0e0e0;
+  --text-dim: #808080;
+  --text-muted: #555;
+  --accent: #ffffff;
+  --ok: #4ade80;
+  --warn: #f59e0b;
+  --fail: #f87171;
+  --info: #60a5fa;
+  --radius: 8px;
+  --radius-sm: 6px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Header ── */
+header {
+  height: 56px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-icon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 16px; height: 16px; }
+.header-left h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+.header-right {
+  display: flex; align-items: center; gap: 16px;
+  font-size: 12px; color: var(--text-dim);
+}
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  display: inline-block;
+  margin-right: 6px;
+}
+
+/* ── Layout ── */
+.layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  min-height: calc(100vh - 56px);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 24px 20px;
+  overflow-y: auto;
+}
+.sidebar-section { margin-bottom: 24px; }
+.sidebar-section:last-child { margin-bottom: 0; }
+.sidebar-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.input-group { margin-bottom: 14px; }
+.input-group:last-child { margin-bottom: 0; }
+.input-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.input-group input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+}
+.input-group input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.08);
+}
+.input-group input::placeholder { color: var(--text-muted); }
+
+.btn-probe {
+  width: 100%;
+  padding: 11px 0;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  margin-top: 18px;
+  letter-spacing: 0.3px;
+}
+.btn-probe:hover { opacity: 0.88; }
+.btn-probe:active { transform: scale(0.98); }
+.btn-probe:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+.model-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 8px;
+  display: none;
+  padding: 8px 10px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+}
+.model-hint.visible { display: block; }
+
+/* ── Stats (sidebar) ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.stat-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  text-align: center;
+}
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-top: 3px;
+}
+
+/* ── Main Content ── */
+.main-content {
+  padding: 28px 32px 48px;
+  overflow-y: auto;
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  text-align: center;
+}
+.empty-icon {
+  width: 64px; height: 64px;
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 20px;
+}
+.empty-icon svg { width: 28px; height: 28px; stroke: var(--text-muted); }
+.empty-title { font-size: 16px; font-weight: 600; color: var(--text-dim); margin-bottom: 8px; }
+.empty-desc { font-size: 13px; color: var(--text-muted); max-width: 320px; }
+
+/* Progress bar */
+.progress-bar {
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  margin-bottom: 24px;
+  overflow: hidden;
+  display: none;
+}
+.progress-bar.active { display: block; }
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #888, #fff);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.4s ease;
+}
+
+/* Phase */
+.phase-tag {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 18px;
+}
+.phase-tag.active { display: flex; }
+.phase-tag::before {
+  content: '';
+  width: 3px; height: 14px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* Step Cards Grid */
+.steps-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.step-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  font-size: 13px;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+}
+.step-card.running { border-color: var(--info); background: rgba(96,165,250,0.04); }
+.step-card.ok     { border-color: var(--ok); }
+.step-card.warn   { border-color: var(--warn); background: rgba(245,158,11,0.04); }
+.step-card.fail   { border-color: var(--fail); background: rgba(248,113,113,0.04); }
+.step-card.info   { border-color: var(--info); }
+
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.step-label {
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.step-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-weight: 600;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.step-badge.running { background: rgba(96,165,250,0.15); color: var(--info); }
+.step-badge.ok     { background: rgba(74,222,128,0.12); color: var(--ok); }
+.step-badge.warn   { background: rgba(245,158,11,0.12); color: var(--warn); }
+.step-badge.fail   { background: rgba(248,113,113,0.12); color: var(--fail); }
+.step-badge.info   { background: rgba(96,165,250,0.12); color: var(--info); }
+.step-detail {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+/* Clue banner */
+.clue-banner {
+  grid-column: 1 / -1;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0;
+}
+.clue-banner.high   { background: rgba(74,222,128,0.06); border: 1px solid rgba(74,222,128,0.2); }
+.clue-banner.medium { background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2); }
+.clue-banner.info   { background: rgba(96,165,250,0.06); border: 1px solid rgba(96,165,250,0.2); }
+.clue-banner.warn   { background: rgba(248,113,113,0.06); border: 1px solid rgba(248,113,113,0.2); }
+.clue-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.clue-banner.high .clue-dot   { background: var(--ok); }
+.clue-banner.medium .clue-dot { background: var(--warn); }
+.clue-banner.info .clue-dot   { background: var(--info); }
+.clue-banner.warn .clue-dot   { background: var(--fail); }
+
+/* Error */
+.error-banner {
+  grid-column: 1 / -1;
+  padding: 14px 18px;
+  background: rgba(248,113,113,0.06);
+  border: 1px solid rgba(248,113,113,0.25);
+  border-radius: var(--radius);
+  color: var(--fail);
+  font-size: 13px;
+  display: none;
+  margin-top: 6px;
+}
+.error-banner.active { display: block; }
+
+/* ── Verdict Panel ── */
+.verdict-panel {
+  margin-top: 28px;
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.verdict-panel.active { display: block; }
+.verdict-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.verdict-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.3px;
+}
+.verdict-confidence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.conf-ring {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+  border: 3px solid var(--accent);
+  color: var(--accent);
+}
+.verdict-body { padding: 0; }
+.verdict-meta {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+}
+.meta-item {
+  background: var(--surface);
+  padding: 16px 20px;
+}
+.meta-item .meta-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.meta-item .meta-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-all;
+}
+
+/* ── Findings Table ── */
+.findings-section {
+  padding: 20px 24px;
+  display: none;
+  border-top: 1px solid var(--border);
+}
+.findings-section.active { display: block; }
+.findings-section h3 {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+.findings-table {
+  width: 100%;
+  font-size: 12px;
+  border-collapse: collapse;
+}
+.findings-table th {
+  text-align: left;
+  padding: 8px 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+.findings-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-dim);
+  vertical-align: top;
+}
+.findings-table td:first-child { color: var(--text-muted); white-space: nowrap; }
+.findings-table td:nth-child(2) { font-weight: 600; color: var(--text); white-space: nowrap; }
+.findings-table td:nth-child(3) { word-break: break-all; }
+.hit-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.hit-badge.yes { background: rgba(74,222,128,0.12); color: var(--ok); }
+.hit-badge.no  { background: rgba(248,113,113,0.10); color: var(--fail); }
+
+/* ── Responsive ── */
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 20px 16px;
+    position: sticky;
+    top: 56px;
+    z-index: 50;
+  }
+  .sidebar-section { margin-bottom: 16px; }
+  .main-content { padding: 20px 16px 40px; }
+  .steps-grid { grid-template-columns: 1fr; }
+  .verdict-meta { grid-template-columns: 1fr; }
+  .verdict-header { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 480px) {
+  header { padding: 0 12px; }
+  .header-left h1 { font-size: 13px; }
+  .header-right { font-size: 11px; }
+  .sidebar { padding: 16px 12px; }
+  .stat-value { font-size: 18px; }
+  .verdict-title { font-size: 16px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M6 12h12M12 6l6 6-6 6"/></svg>
+    </div>
+    <h1>AI 中转站真伪探测器</h1>
+  </div>
+  <div class="header-right">
+    <span class="status-dot"></span>
+    <span id="headerStatus">就绪</span>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">目标配置</div>
+      <div class="input-group">
+        <label for="urlInput">Base URL</label>
+        <input id="urlInput" type="text" placeholder="https://api.example.com">
+      </div>
+      <div class="input-group">
+        <label for="keyInput">API Key</label>
+        <input id="keyInput" type="password" placeholder="sk-...">
+      </div>
+      <div class="input-group">
+        <label for="modelInput">模型名（可选）</label>
+        <input id="modelInput" type="text" placeholder="gpt-4o">
+      </div>
+      <div class="model-hint" id="modelHint"></div>
+      <button class="btn-probe" id="probeBtn" onclick="startProbe()">开始探测</button>
+    </div>
+
+    <div class="sidebar-section" id="sidebarStats" style="display:none">
+      <div class="sidebar-label">实时统计</div>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="stat-value" id="statSteps">0</div><div class="stat-label">已完成</div></div>
+        <div class="stat-box"><div class="stat-value" id="statConf">0%</div><div class="stat-label">置信度</div></div>
+        <div class="stat-box"><div class="stat-value" id="statModel">--</div><div class="stat-label">工作模型</div></div>
+        <div class="stat-box"><div class="stat-value" id="statTime">--</div><div class="stat-label">耗时</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main Content ── -->
+  <main class="main-content" id="mainContent">
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6M9 16h6M9 8h6"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>
+      </div>
+      <div class="empty-title">输入目标信息并开始探测</div>
+      <div class="empty-desc">支持 OpenAI 兼容 API 端点。14 维度交叉验证，实时推理，自动判定模型真伪。</div>
+    </div>
+
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="phase-tag" id="phaseTag"></div>
+    <div class="steps-grid" id="stepsGrid"></div>
+    <div class="error-banner" id="errorBanner"></div>
+
+    <div class="verdict-panel" id="verdictPanel">
+      <div class="verdict-header">
+        <div class="verdict-title" id="verdictTitle"></div>
+        <div class="verdict-confidence"><div class="conf-ring" id="confRing">0%</div></div>
+      </div>
+      <div class="verdict-body">
+        <div class="verdict-meta" id="verdictMeta"></div>
+        <div class="findings-section" id="findingsSection">
+          <h3>探测明细</h3>
+          <table class="findings-table"><tbody id="findingsBody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+let totalSteps = 14;
+let completedSteps = 0;
+let currentConfidence = 0;
+
+function startProbe() {
+  const url = document.getElementById('urlInput').value.trim();
+  const key = document.getElementById('keyInput').value.trim();
+  const model = document.getElementById('modelInput').value.trim() || 'gpt-4o';
+  if (!url || !key) return;
+
+  // Reset
+  document.getElementById('stepsGrid').innerHTML = '';
+  document.getElementById('verdictPanel').classList.remove('active');
+  document.getElementById('findingsSection').classList.remove('active');
+  document.getElementById('errorBanner').classList.remove('active');
+  document.getElementById('modelHint').classList.remove('visible');
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('progressBar').classList.add('active');
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('sidebarStats').style.display = 'block';
+  completedSteps = 0;
+  currentConfidence = 0;
+
+  document.getElementById('statSteps').textContent = '0';
+  document.getElementById('statConf').textContent = '0%';
+  document.getElementById('statModel').textContent = '--';
+  document.getElementById('statTime').textContent = '--';
+  document.getElementById('headerStatus').textContent = '探测中...';
+
+  const btn = document.getElementById('probeBtn');
+  btn.disabled = true;
+  btn.textContent = '探测中...';
+
+  fetch('/api/probe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, key, model })
+  }).then(resp => {
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    return reader.read().then(function pump({ done, value }) {
+      if (done) { finish(); return; }
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const l of lines) {
+        if (l.startsWith('event: ')) window._ev = l.slice(7);
+        else if (l.startsWith('data: ')) {
+          try { handle(window._ev || 'unknown', JSON.parse(l.slice(6))); } catch(e) {}
+          window._ev = null;
+        }
+      }
+      return reader.read().then(pump);
+    });
+  }).catch(e => showError('连接失败: ' + e.message)).finally(finish);
+
+  function finish() {
+    btn.disabled = false;
+    btn.textContent = '开始探测';
+    document.getElementById('progressBar').classList.remove('active');
+    document.getElementById('headerStatus').textContent = '就绪';
+  }
+}
+
+function handle(type, data) {
+  const grid = document.getElementById('stepsGrid');
+
+  if (type === 'phase') {
+    const el = document.getElementById('phaseTag');
+    el.textContent = data.phase;
+    el.classList.add('active');
+    return;
+  }
+
+  if (type === 'step') {
+    completedSteps++;
+    updateProgress();
+    let card = document.getElementById('step-' + data.step);
+    if (!card) {
+      card = document.createElement('div');
+      card.className = 'step-card';
+      card.id = 'step-' + data.step;
+      grid.appendChild(card);
+    }
+    card.className = 'step-card ' + data.status;
+    const b = data.status === 'warn' ? 'warn' : data.status === 'info' ? 'info' : data.status;
+    const detailHtml = data.detail ? `<div class="step-detail">${esc(data.detail)}</div>` : '';
+    card.innerHTML = `<div class="step-header"><span class="step-label">${data.step}. ${data.label}</span><span class="step-badge ${b}">${b === 'ok' ? '完成' : b === 'warn' ? '异常' : b === 'fail' ? '失败' : b}</span></div>${detailHtml}`;
+    document.getElementById('statSteps').textContent = completedSteps;
+    return;
+  }
+
+  if (type === 'clue') {
+    const el = document.createElement('div');
+    el.className = 'clue-banner ' + data.severity;
+    el.innerHTML = `<div class="clue-dot"></div><span>${esc(data.text)}</span>`;
+    grid.appendChild(el);
+    if (data.confidence_delta) {
+      currentConfidence += data.confidence_delta;
+      document.getElementById('statConf').textContent = currentConfidence + '%';
+    }
+    return;
+  }
+
+  if (type === 'model_selected') {
+    document.getElementById('modelHint').textContent = '实际使用模型: ' + data.model;
+    document.getElementById('modelHint').classList.add('visible');
+    document.getElementById('statModel').textContent = data.model;
+    return;
+  }
+
+  if (type === 'done') {
+    currentConfidence = data.confidence;
+    document.getElementById('statConf').textContent = currentConfidence + '%';
+    document.getElementById('statModel').textContent = data.test_model;
+    document.getElementById('statTime').textContent = data.elapsed + 's';
+    renderVerdict(data);
+    return;
+  }
+
+  if (type === 'error') { showError(data.text); }
+}
+
+function updateProgress() {
+  const pct = Math.min(Math.round((completedSteps / totalSteps) * 100), 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorBanner');
+  el.textContent = msg;
+  el.classList.add('active');
+}
+
+function renderVerdict(data) {
+  const panel = document.getElementById('verdictPanel');
+  panel.classList.add('active');
+  document.getElementById('verdictTitle').textContent = '结论: ' + data.verdict;
+  document.getElementById('confRing').textContent = data.confidence + '%';
+
+  document.getElementById('verdictMeta').innerHTML = `
+    <div class="meta-item"><div class="meta-label">置信度</div><div class="meta-value">${data.confidence}%</div></div>
+    <div class="meta-item"><div class="meta-label">探测维度</div><div class="meta-value">${data.dimensions}</div></div>
+    <div class="meta-item"><div class="meta-label">中转框架</div><div class="meta-value">${esc(data.framework || '未识别')}</div></div>
+    <div class="meta-item"><div class="meta-label">工作模型</div><div class="meta-value">${esc(data.test_model)}</div></div>
+    <div class="meta-item"><div class="meta-label">耗时</div><div class="meta-value">${data.elapsed}s</div></div>
+    <div class="meta-item"><div class="meta-label">伪装身份</div><div class="meta-value">${esc(data.disguise || '无')}</div></div>
+  `;
+
+  const fsec = document.getElementById('findingsSection');
+  const fbody = document.getElementById('findingsBody');
+  fsec.classList.add('active');
+  fbody.innerHTML = data.findings.map(f =>
+    `<tr>
+      <td>${esc(f.category)}</td>
+      <td>${esc(f.method)}</td>
+      <td>${esc(f.detail)}</td>
+      <td><span class="hit-badge ${f.hit ? 'yes' : 'no'}">${f.hit ? 'HIT' : 'NEG'}</span></td>
+    </tr>`
+  ).join('');
+
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
