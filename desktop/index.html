@@ -928,6 +928,7 @@ function handle(type, data) {
     }
 
     card.innerHTML = `<div class="step-header"><span class="step-label">${data.step}. ${data.label}</span><span class="step-badge ${b}">${badgeText}</span></div>${detailHtml}${famHtml}`;
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     return;
   }
 
@@ -941,6 +942,7 @@ function handle(type, data) {
       currentConfidence = Math.min(currentConfidence + data.confidence_delta, 100);
       document.getElementById('statConf').textContent = currentConfidence + '%';
     }
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     return;
   }
 

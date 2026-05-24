@@ -803,6 +803,7 @@ function handle(type, data) {
     const badgeText = b === 'ok' ? '完成' : b === 'warn' ? '异常' : b === 'fail' ? '失败' : b === 'running' ? '运行中' : b;
     const detailHtml = data.detail ? `<div class="step-detail">${esc(data.detail)}</div>` : '';
     card.innerHTML = `<div class="step-header"><span class="step-label">${data.step}. ${data.label}</span><span class="step-badge ${b}">${badgeText}</span></div>${detailHtml}`;
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     return;
   }
 
@@ -815,6 +816,7 @@ function handle(type, data) {
       currentConfidence = Math.min(currentConfidence + data.confidence_delta, 100);
       document.getElementById('statConf').textContent = currentConfidence + '%';
     }
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     return;
   }
 
