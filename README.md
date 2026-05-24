@@ -112,3 +112,9 @@ build.bat
 - **Web 通信**：FastAPI SSE (text/event-stream)，前端 fetch + ReadableStream 逐步消费
 - **Desktop 通信**：pywebview JS API bridge，Python 通过 `evaluate_js` 直接推送事件到前端 DOM
 - **前端 UI**：同款响应式双栏布局，PC + 移动端兼容，暗色主题
+
+---
+
+## 联系方式
+
+QQ: 466656664
