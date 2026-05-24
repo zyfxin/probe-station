@@ -158,6 +158,7 @@ class ProbeEngine:
     def emit_event(self, event_type, data):
         if "confidence_delta" in data:
             self.confidence += data.pop("confidence_delta")
+            self.confidence = min(self.confidence, 100)
         data["confidence"] = self.confidence
         self.emit(event_type, data)
 

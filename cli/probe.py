@@ -630,6 +630,8 @@ def probe(base_url, api_key, user_model):
     # ========== 结论 ==========
     elapsed_total = time.time() - start
 
+    result.confidence = min(result.confidence, 100)
+
     # 智能判断
     if result.confidence >= 70:
         # 分析检测到的家族

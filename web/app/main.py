@@ -71,6 +71,7 @@ async def probe_generator(base_url, api_key, user_model):
         nonlocal confidence
         if "confidence_delta" in data:
             confidence += data.pop("confidence_delta")
+            confidence = min(confidence, 100)
             data["confidence"] = confidence
         return sse_event(evt, data)
 
@@ -352,6 +353,7 @@ async def probe_generator(base_url, api_key, user_model):
 
     # ── 结论 ──
     total_elapsed = time.time() - start_time
+    confidence = min(confidence, 100)
 
     # 构建 verdict
     verdict = ""

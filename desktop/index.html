@@ -813,7 +813,7 @@ function handle(type, data) {
     grid.appendChild(el);
     if (data.family) { familiesSeen[data.family] = (familiesSeen[data.family] || 0) + 1; }
     if (data.confidence_delta) {
-      currentConfidence += data.confidence_delta;
+      currentConfidence = Math.min(currentConfidence + data.confidence_delta, 100);
       document.getElementById('statConf').textContent = currentConfidence + '%';
     }
     return;
@@ -827,7 +827,7 @@ function handle(type, data) {
   }
 
   if (type === 'done') {
-    currentConfidence = data.confidence;
+    currentConfidence = Math.min(data.confidence, 100);
     document.getElementById('statConf').textContent = currentConfidence + '%';
     document.getElementById('statModel').textContent = data.test_model;
     document.getElementById('statTime').textContent = data.elapsed + 's';
@@ -863,7 +863,8 @@ function renderVerdict(data) {
   const verdictText = data.verdict || '未判定';
   const titleEl = document.getElementById('verdictTitle');
   titleEl.textContent = '结论: ' + verdictText;
-  document.getElementById('confRing').textContent = data.confidence + '%';
+  const cappedConf = Math.min(data.confidence, 100);
+  document.getElementById('confRing').textContent = cappedConf + '%';
 
   // Meta with family info
   const famClass = data.test_family ? familyCssClass(data.test_family) : '';
@@ -871,7 +872,7 @@ function renderVerdict(data) {
   const famDisplay = families.length > 0 ? families.join(' / ') : (data.test_family || '未知');
 
   document.getElementById('verdictMeta').innerHTML = `
-    <div class="meta-item"><div class="meta-label">置信度</div><div class="meta-value">${data.confidence}%</div></div>
+    <div class="meta-item"><div class="meta-label">置信度</div><div class="meta-value">${cappedConf}%</div></div>
     <div class="meta-item"><div class="meta-label">识别家族</div><div class="meta-value ${famClass}">${esc(famDisplay)}</div></div>
     <div class="meta-item"><div class="meta-label">中转框架</div><div class="meta-value">${esc(data.framework || '未识别')}</div></div>
     <div class="meta-item"><div class="meta-label">工作模型</div><div class="meta-value">${esc(data.test_model)}</div></div>
