@@ -642,7 +642,7 @@ header {
     <div class="sidebar-section" id="sidebarStats" style="display:none">
       <div class="sidebar-label">实时统计</div>
       <div class="stats-grid">
-        <div class="stat-box"><div class="stat-value" id="statSteps">0/12</div><div class="stat-label">步骤</div></div>
+        <div class="stat-box"><div class="stat-value" id="statSteps">0/10</div><div class="stat-label">步骤</div></div>
         <div class="stat-box"><div class="stat-value" id="statConf">0%</div><div class="stat-label">置信度</div></div>
         <div class="stat-box"><div class="stat-value" id="statModel">--</div><div class="stat-label">工作模型</div></div>
         <div class="stat-box"><div class="stat-value" id="statTime">0s</div><div class="stat-label">耗时</div></div>
@@ -657,7 +657,7 @@ header {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6M9 16h6M9 8h6"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>
       </div>
       <div class="empty-title">输入目标信息并开始探测</div>
-      <div class="empty-desc">支持 OpenAI 兼容 API 端点。12 维度交叉验证，实时推理，自动判定模型真伪。</div>
+      <div class="empty-desc">支持 OpenAI 兼容 API 端点。10 维度交叉验证，实时推理，自动判定模型真伪。</div>
     </div>
 
     <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
@@ -687,7 +687,7 @@ header {
 </div>
 
 <script>
-let totalSteps = 12;
+let totalSteps = 10;
 let completedSteps = 0;
 let currentConfidence = 0;
 let timerInterval = null;
