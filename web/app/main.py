@@ -4,14 +4,18 @@ import json
 import ssl
 import time
 import asyncio
+import ipaddress
+import socket
 import urllib.request
 import urllib.error
+from collections import defaultdict
+from urllib.parse import urlparse
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import os
 
-app = FastAPI(title="AI Proxy Detector")
+app = FastAPI(title="AI Proxy Detector", docs_url=None, redoc_url=None)
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -336,8 +340,50 @@ async def probe_generator(base_url, api_key, user_model):
 async def index():
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
+# ─── 安全工具 ─────────────────────────────────────────────
+
+_RATE_LIMIT_WINDOW = 60  # seconds
+_RATE_LIMIT_MAX = 10     # max requests per window per IP
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+
+
+def _is_rate_limited(client_ip: str) -> bool:
+    now = time.time()
+    timestamps = _rate_limit_store[client_ip]
+    _rate_limit_store[client_ip] = [t for t in timestamps if now - t < _RATE_LIMIT_WINDOW]
+    if len(_rate_limit_store[client_ip]) >= _RATE_LIMIT_MAX:
+        return True
+    _rate_limit_store[client_ip].append(now)
+    return False
+
+
+def _validate_probe_url(url: str) -> str | None:
+    """Return an error message if the URL is unsafe, or None if OK."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return "仅支持 http/https 协议"
+    hostname = parsed.hostname
+    if not hostname:
+        return "无效的 URL"
+    if len(url) > 2048:
+        return "URL 过长"
+    try:
+        resolved = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        return f"无法解析主机名: {hostname}"
+    for family, _, _, _, addr in resolved:
+        ip = ipaddress.ip_address(addr[0])
+        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+            return "不允许访问内网地址"
+    return None
+
+
 @app.post("/api/probe")
 async def probe_api(request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    if _is_rate_limited(client_ip):
+        return JSONResponse({"error": "请求过于频繁，请稍后再试"}, status_code=429)
+
     body = await request.json()
     base_url = body.get("url", "").strip()
     api_key = body.get("key", "").strip()
@@ -346,6 +392,13 @@ async def probe_api(request: Request):
     if not base_url or not api_key:
         return StreamingResponse(
             iter([sse_event("error", {"text": "URL 和 Key 不能为空"})]),
+            media_type="text/event-stream"
+        )
+
+    url_error = _validate_probe_url(base_url)
+    if url_error:
+        return StreamingResponse(
+            iter([sse_event("error", {"text": url_error})]),
             media_type="text/event-stream"
         )
 

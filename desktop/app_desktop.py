@@ -461,7 +461,8 @@ class Api:
     def start_probe(self, url, key, model):
         def emit_to_js(event_type, data):
             payload = json.dumps(data, ensure_ascii=False)
-            js = f"handleEvent('{event_type}', {payload})"
+            safe_type = json.dumps(event_type)
+            js = f"handleEvent({safe_type}, JSON.parse({json.dumps(payload)}))"
             try:
                 self._window.evaluate_js(js)
             except Exception:

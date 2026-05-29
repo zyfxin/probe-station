@@ -16,6 +16,7 @@ import time
 import sys
 import os
 import argparse
+import html as html_mod
 import urllib.request
 import urllib.error
 from datetime import datetime
@@ -725,9 +726,15 @@ def print_report(result):
             print(f"    {c('✗', Colors.RED)} {c(name, family_color)} ({vendor}): {err[:60]}")
 
 
+def _h(s):
+    """HTML-escape a string for safe interpolation."""
+    return html_mod.escape(str(s))
+
+
 def generate_html_report(result, base_url, output_path):
     """生成HTML报告（简化版）"""
     findings_json = json.dumps(result.findings, ensure_ascii=False)
+    verdict_safe = _h(result.verdict).replace('\n', '<br>')
     
     html = f'''<!DOCTYPE html>
 <html lang="zh-CN">
@@ -791,20 +798,20 @@ tr:hover td{{background:rgba(255,255,255,.02)}}
 
 <div class="verdict">
 <h2>检测结论</h2>
-<div class="model">{result.verdict.replace('\n', '<br>')}</div>
+<div class="model">{verdict_safe}</div>
 <div class="meta">
-目标: {base_url} | 测试模型: {result.test_model} | 耗时: {result.elapsed:.1f}s | 置信度: {result.confidence}%
-{f'<br>框架: {result.framework}' if result.framework else ''}
+目标: {_h(base_url)} | 测试模型: {_h(result.test_model)} | 耗时: {result.elapsed:.1f}s | 置信度: {result.confidence}%
+{f'<br>框架: {_h(result.framework)}' if result.framework else ''}
 </div>
 <div class="conf">
 <span style="font-size:.8em;color:var(--text2)">置信度</span>
 <div class="conf-bar"><div class="conf-fill" style="width:{min(result.confidence,100)}%"></div></div>
 <span style="font-size:.9em">{result.confidence}%</span>
 </div>
-{f'<div style="margin-top:12px;font-size:.85em;color:var(--red)">伪装身份: {result.disguise[:150]}</div>' if result.disguise else ''}
+{f'<div style="margin-top:12px;font-size:.85em;color:var(--red)">伪装身份: {_h(result.disguise[:150])}</div>' if result.disguise else ''}
 </div>
 
-{f'<div class="anomaly"><h4>⚠ 不符合标准项 ({len(result.anomalies)})</h4><ul style="font-size:.85em;color:var(--text2)">' + ''.join(f'<li>{anom}</li>' for anom in result.anomalies[:10]) + '</ul></div>' if result.anomalies else ''}
+{f'<div class="anomaly"><h4>⚠ 不符合标准项 ({len(result.anomalies)})</h4><ul style="font-size:.85em;color:var(--text2)">' + ''.join(f'<li>{_h(anom)}</li>' for anom in result.anomalies[:10]) + '</ul></div>' if result.anomalies else ''}
 
 <div class="section">
 <h3>探测明细 ({len(result.findings)} 维度)</h3>
@@ -814,14 +821,14 @@ tr:hover td{{background:rgba(255,255,255,.02)}}
     
     for f in result.findings:
         tag_cls = "tag-g" if f["hit"] == "✓" else "tag-r" if f["hit"] == "✗" else "tag-y"
-        standard = f"<span style='font-size:.75em;color:var(--text2)'>{f['standard_check'] or ''}</span><br><small>期望: {f['expected'] or ''}<br>实际: {f['actual'] or ''}</small>" if f.get("standard_check") else ""
+        standard = f"<span style='font-size:.75em;color:var(--text2)'>{_h(f['standard_check'] or '')}</span><br><small>期望: {_h(f['expected'] or '')}<br>实际: {_h(f['actual'] or '')}</small>" if f.get("standard_check") else ""
         
         html += f'''<tr>
-<td>{f["category"]}</td>
-<td>{f["method"]}</td>
-<td style="max-width:300px;word-break:break-all">{f["detail"][:150]}</td>
+<td>{_h(f["category"])}</td>
+<td>{_h(f["method"])}</td>
+<td style="max-width:300px;word-break:break-all">{_h(f["detail"][:150])}</td>
 <td>{standard}</td>
-<td><span class="tag {tag_cls}">{f["hit"]}</span></td>
+<td><span class="tag {tag_cls}">{_h(f["hit"])}</span></td>
 </tr>
 '''
 
